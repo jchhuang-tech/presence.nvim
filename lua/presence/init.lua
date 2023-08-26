@@ -240,7 +240,7 @@ function Presence:check_discord_socket(path)
     vim.loop.fs_stat(path, function(err, stats)
         if err then
             local err_msg = "Failed to get socket information"
-            self.log:error(string.format("%s: %s", err_msg, err))
+            self.log:warn(string.format("%s: %s (is Discord running?)", err_msg, err))
             return
         end
 
@@ -320,7 +320,7 @@ function Presence:connect(on_done)
         -- Handle known connection errors
         if err == "EISCONN" then
             self.log:info("Already connected to Discord")
-        elseif err == "ECONNREFUSED" then
+        elseif err == "ECONNREFUSED" or err == "ENOENT" then
             self.log:warn("Failed to connect to Discord: "..err.." (is Discord running?)")
             return
         elseif err then
