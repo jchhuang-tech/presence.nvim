@@ -838,15 +838,34 @@ function Presence:update_for_buffer(buffer, should_debounce)
         end
     end
 
-    -- Get the current line number and line count if the user has set the enable_line_number option
-    if self.options.enable_line_number == 1 then
-        self.log:debug("Getting line number for current buffer...")
+    -- Include project details if available
+    if project_name then
+        self.log:debug(string.format("Detected project: %s", project_name))
 
-        local line_number = vim.api.nvim_win_get_cursor(0)[1]
-        local line_count = vim.api.nvim_buf_line_count(0)
-        local line_number_text = self:format_status_text("line_number", line_number, line_count)
+        activity.details = self:format_status_text("workspace", project_name, buffer)
 
-        activity.details = line_number_text
+        self.workspace = project_path
+        self.last_activity = {
+            id = self.id,
+            file = buffer,
+            set_at = activity_set_at,
+            relative_set_at = relative_activity_set_at,
+            workspace = project_path,
+        }
+
+        if self.workspaces[project_path] then
+            self.workspaces[project_path].updated_at = activity_set_at
+            activity.timestamps = self.options.show_time == 1 and {
+                start = self.workspaces[project_path].started_at,
+            } or nil
+        else
+            self.workspaces[project_path] = {
+                started_at = activity_set_at,
+                updated_at = activity_set_at,
+            }
+        end
+    else
+        self.log:debug("No project detected")
 
         self.workspace = nil
         self.last_activity = {
@@ -856,70 +875,31 @@ function Presence:update_for_buffer(buffer, should_debounce)
             relative_set_at = relative_activity_set_at,
             workspace = nil,
         }
-        if self.workspaces[project_path] then
-            self.workspaces[project_path].updated_at = activity_set_at
-            activity.timestamps = self.options.show_time == 1 and {
-                start = self.workspaces[project_path].started_at,
-            } or nil
-        elseif project_path then
-            self.workspaces[project_path] = {
-                started_at = activity_set_at,
-                updated_at = activity_set_at,
-            }
-        end
-    else
-        -- Include project details if available and if the user hasn't set the enable_line_number option
-        if project_name then
-            self.log:debug(string.format("Detected project: %s", project_name))
 
-            activity.details = self:format_status_text("workspace", project_name, buffer)
-
-            self.workspace = project_path
-            self.last_activity = {
-                id = self.id,
-                file = buffer,
-                set_at = activity_set_at,
-                relative_set_at = relative_activity_set_at,
-                workspace = project_path,
-            }
-
-            if self.workspaces[project_path] then
-                self.workspaces[project_path].updated_at = activity_set_at
-                activity.timestamps = self.options.show_time == 1 and {
-                    start = self.workspaces[project_path].started_at,
-                } or nil
-            else
-                self.workspaces[project_path] = {
-                    started_at = activity_set_at,
-                    updated_at = activity_set_at,
-                }
+        -- When no project is detected, set custom workspace text if:
+        -- * The custom function returns custom workspace text
+        -- * The configured workspace text does not contain a directive
+        -- (can't use the `format_status_text` method here)
+        local workspace_text = self.options.workspace_text
+        if type(workspace_text) == "function" then
+            local custom_workspace_text = workspace_text(nil, buffer)
+            if custom_workspace_text then
+                activity.details = custom_workspace_text
             end
-        else
-            self.log:debug("No project detected")
-
-            self.workspace = nil
-            self.last_activity = {
-                id = self.id,
-                file = buffer,
-                set_at = activity_set_at,
-                relative_set_at = relative_activity_set_at,
-                workspace = nil,
-            }
-
-            -- When no project is detected, set custom workspace text if:
-            -- * The custom function returns custom workspace text
-            -- * The configured workspace text does not contain a directive
-            -- (can't use the `format_status_text` method here)
-            local workspace_text = self.options.workspace_text
-            if type(workspace_text) == "function" then
-                local custom_workspace_text = workspace_text(nil, buffer)
-                if custom_workspace_text then
-                    activity.details = custom_workspace_text
-                end
-            elseif not workspace_text:find("%s") then
-                activity.details = workspace_text
-            end
+        elseif not workspace_text:find("%s") then
+            activity.details = workspace_text
         end
+    end
+
+    -- Get the current line number and line count if the user has set the enable_line_number option
+    if self.options.enable_line_number == 1 then
+        self.log:debug("Getting line number for current buffer...")
+
+        local line_number = vim.api.nvim_win_get_cursor(0)[1]
+        local line_count = vim.api.nvim_buf_line_count(0)
+        local line_number_text = self:format_status_text("line_number", line_number, line_count)
+
+        activity.details = line_number_text
     end
 
     -- Sync activity to all peers
