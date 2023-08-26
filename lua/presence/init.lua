@@ -856,6 +856,17 @@ function Presence:update_for_buffer(buffer, should_debounce)
             relative_set_at = relative_activity_set_at,
             workspace = nil,
         }
+        if self.workspaces[project_path] then
+            self.workspaces[project_path].updated_at = activity_set_at
+            activity.timestamps = self.options.show_time == 1 and {
+                start = self.workspaces[project_path].started_at,
+            } or nil
+        elseif project_path then
+            self.workspaces[project_path] = {
+                started_at = activity_set_at,
+                updated_at = activity_set_at,
+            }
+        end
     else
         -- Include project details if available and if the user hasn't set the enable_line_number option
         if project_name then
